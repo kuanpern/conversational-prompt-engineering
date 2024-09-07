@@ -1,0 +1,5 @@
+change the introduction slightly to reflect IBM research
+support for general client
+remove ok_to_proceed_to_chat by default
+supported model
+not setting default model

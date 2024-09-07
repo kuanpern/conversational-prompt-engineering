@@ -7,6 +7,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
+import langchain_core.messages
 
 class HumanRole(Enum):
     User = "user"
@@ -52,9 +53,14 @@ class AbstLLMClient:
     def send_messages(self, conversation, max_new_tokens=None):
         def log_message(text, member_to_update):
             if isinstance(text, list):
-                cnt = sum(len(x) for x in text)
+                if isinstance(text[0], langchain_core.messages.BaseMessage):
+                    cnt = sum(len(x.content.split()) for x in text)
+                else:
+                    cnt = sum(len(x) for x in text) # is this correctly counting words?
+                # end if
             else:
                 cnt = len(text.split())
+            # end if
             setattr(self, member_to_update, getattr(self, member_to_update) + cnt)
             logging.info(f"{member_to_update} = {getattr(self, member_to_update)} (added {cnt} in this turn)")
             return cnt

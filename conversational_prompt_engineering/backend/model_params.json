@@ -22,7 +22,7 @@
         "max_total_tokens": 32768
     },
     "gemini-1.5-flash": {
-      "model_id": "vertex-ai/gemini-1.5-flash",
+      "model_id": "google/gemini-1.5-flash",
       "max_new_tokens": 4096,
       "max_total_tokens": 32768
     }

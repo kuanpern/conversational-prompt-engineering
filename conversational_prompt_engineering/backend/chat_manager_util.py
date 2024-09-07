@@ -14,6 +14,7 @@ from genai.schema import ChatRole
 from conversational_prompt_engineering.backend.prompt_building_util import TargetModelHandler, LLAMA_END_OF_MESSAGE, \
     _get_llama_header, LLAMA_START_OF_INPUT
 
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, merge_message_runs
 
 def extract_delimited_text(txt, delims):
     try:
@@ -34,14 +35,16 @@ def create_model_client(model_name, llm_client):
         params = json.load(f)
     model_params = {x: y for x, y in params['models'][model_name].items()}
     endpoint = params["endpoints"][llm_client.__name__]
-    return llm_client(endpoint, model_params)
     try:
         return llm_client(endpoint, model_params)
     except Exception as e:
         raise ValueError(f'Error generating model client: ' + str(e))
+    # end try
+# end def
 
 
 def format_chat(chat, model_id):
+    # TODO: default to using langchain
     if any([name in model_id for name in ['mixtral', 'prometheus']]):
         bos_token = '<s>'
         eos_token = '</s>'
@@ -74,10 +77,22 @@ def format_chat(chat, model_id):
             msg_str += _get_llama_header(m['role']) + "\n\n" + m['content'] + LLAMA_END_OF_MESSAGE
         msg_str += _get_llama_header(ChatRole.ASSISTANT)
         return msg_str
-    else:
-        raise ValueError(f"model {model_id} not supported")
-
-
+    else: # use langchain
+        messages = []
+        for m in chat:
+            if m["role"] == 'user':
+                messages.append( HumanMessage(content=m['content']))
+            elif m["role"] == 'assistant':
+                messages.append(    AIMessage(content=m['content']))
+            elif m["role"] == 'system':
+                messages.append( HumanMessage(content=m['content']))
+            else:
+                raise ValueError('unknown role: ' + m['role'])
+            # end if
+        # end for
+        return merge_message_runs(messages)
+    # end if
+# end def
 
 
 
@@ -137,22 +152,12 @@ class ChatManagerBase:
         logging.info(f"Highest processing time: {self.timing_report[-1]}")
         logging.info(f"Lowest processing time: {self.timing_report[0]}")
 
-#    def _generate_output_and_log_stats(self, conversation, client, max_new_tokens=None):
-#        start_time = time
-#        generated_texts, stats_dict = client.send_messages(conversation, max_new_tokens)
-#        elapsed_time = time.time() - start_time.time()
-#        timing_dict = {"total_time": elapsed_time, "start_time": start_time.strftime("%d-%m-%Y %H:%M:%S")}
-#        timing_dict.update(stats_dict)
-#        logging.info(timing_dict)
-#        self.timing_report.append(timing_dict)
-#        return generated_texts
-
-    # HERE
     def _generate_output_and_log_stats(self, conversation, client, max_new_tokens=None):
         start_time = time
-        generated_texts = client.send_messages(conversation, max_new_tokens)
+        generated_texts, stats_dict = client.send_messages(conversation, max_new_tokens)
         elapsed_time = time.time() - start_time.time()
         timing_dict = {"total_time": elapsed_time, "start_time": start_time.strftime("%d-%m-%Y %H:%M:%S")}
+        timing_dict.update(stats_dict)
         logging.info(timing_dict)
         self.timing_report.append(timing_dict)
         return generated_texts
@@ -176,6 +181,8 @@ class ChatManagerBase:
         conversation = format_chat(chat, self.llm_client.parameters['model_id'])
         generated_texts = self._generate_output_and_log_stats(conversation, client=self.llm_client,
                                                               max_new_tokens=max_new_tokens)
+        # print('generated_texts:')
+        # print(generated_texts)
         agent_response = ''
         for txt in generated_texts:
             if any([f'<|{r}|>' in txt for r in [ChatRole.SYSTEM, ChatRole.USER]]):

@@ -363,10 +363,13 @@ class CallbackChatManager(ChatManagerBase):
         side_model = self.llm_client if 'granite' in self.target_llm_client.parameters['model_id'] \
             else self.target_llm_client
         futures = {}
+        # HERE
         with ThreadPoolExecutor(max_workers=len(self.examples)) as executor:
             for i, example in enumerate(self.examples):
                 prompt_str = TargetModelHandler().format_prompt(model=side_model.parameters['model_id'],
                                                                 prompt=prompt, texts_and_outputs=[])
+                print('prompt_str:')
+                print(prompt_str)
                 prompt_str = prompt_str.format(text=example)
                 futures[i] = executor.submit(self._generate_output, prompt_str, side_model)
 

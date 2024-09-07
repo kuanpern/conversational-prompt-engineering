@@ -37,18 +37,18 @@
       "output_prefix": "Desired output:\n"
     }
   },
-  "gemini-1.5-flash": {
+  "google/gemini-1.5-flash": {
     "comment": "use gemma format here https://ai.google.dev/gemma/docs/formatting",
     "short_name": "gemini-1.5-flash",
     "prompt_formats": {
       "start_of_input": "",
-      "prompt_prefix": "<start_of_turn>user\n",
+      "prompt_prefix": "",
       "prompt_suffix": "\nYour response should only include the answer. Do not provide any further explanation.",
       "test_example_prefix": "\n\n",
       "test_example_placeholder": "{text}\n",
-      "end_of_input": "<start_of_turn>model",
+      "end_of_input": "",
       "input_prefix": "Text:\n",
-      "output_prefix": "Desired output:\n"
+      "output_prefix": "Output:\n"
     }
   }
 }

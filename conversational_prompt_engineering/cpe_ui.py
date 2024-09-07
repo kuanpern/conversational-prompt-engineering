@@ -5,10 +5,11 @@
 
 import datetime
 import hashlib
-import logging
 import os
 import sys
 import dotenv
+import logging
+logging.basicConfig(level=logging.WARNING)
 
 import streamlit as st
 from genai.schema import ChatRole
@@ -144,9 +145,11 @@ def callback_cycle():
         )
 
 
-def submit_button_clicked(target_model):
+def submit_button_clicked(model, target_model):
     def get_secret_key(env_var_name, text_area_key):
         return getattr(st.session_state, text_area_key) if env_var_name not in os.environ else os.environ[env_var_name]
+
+    st.session_state.user_confirmed_models = True
 
     # verify credentials
     st.session_state.cred_error = ""
@@ -157,15 +160,23 @@ def submit_button_clicked(target_model):
             os.environ[cred] = cred_value
         else:
             creds_are_ok = False
+        # end if
+    # end for
+
+    print('creds_are_ok?')
     if creds_are_ok:
-        st.session_state.model = 'llama-3'
+        print('ok')
+        st.session_state.model = model
         st.session_state.target_model = target_model
     else:
+        print('no')
         st.session_state.cred_error = ':heavy_exclamation_mark: Please provide your credentials'
+    # end if
+# end def
 
 instructions_for_user = {
     "main_instructions_for_user":
-        "Welcome to IBM Research Conversational Prompt Engineering (CPE) service.\n" \
+        "Welcome to Conversational Prompt Engineering (CPE) service proposed by IBM Research.\n" \
         "This service is intended to help users build an effective prompt, tailored to their specific use case, through a simple chat with an LLM.\n" \
         "To make the most out of this service, it would be best to prepare in advance at least 3 input examples that represent your use case in a simple csv file. Alternatively, you can use sample data from our data catalog.\n" \
         "For more information feel free to contact us in slack via [#foundation-models-lm-utilization](https://ibm.enterprise.slack.com/archives/C04KBRUDR8R).\n" \
@@ -195,32 +206,41 @@ def set_credentials_in_ui():
 
     if hasattr(st.session_state, "cred_error") and st.session_state.cred_error != "":
         st.error(st.session_state.cred_error)
+    # end if
+# end def
 
 def verify_credentials():
     for env_var in st.session_state.llm_client_class.credentials_params():
         if env_var not in os.environ or os.environ[env_var] == "":
             return False
     return True
+# end def
+
+def OK_to_proceed_to_chat():
+
+    return all([
+        'model'            in st.session_state,
+        'target_model'     in st.session_state,
+        'llm_client_class' in st.session_state,
+        verify_credentials(),
+        getattr(st.session_state, 'user_confirmed_models', False),
+    ])
+# end def
+
 
 def init_set_up_page():
-    st.title(":blue[IBM Research Conversational Prompt Engineering]")
-    # default setting
-    st.session_state.model = 'llama-3'
-    if not hasattr(st.session_state, "target_model"):
-        st.session_state.target_model = 'llama-3'
+    st.title(":blue[Conversational Prompt Engineering]")
 
     llm_client_names_from_config = eval(st.session_state["config"].get("General", "llm_api"))
     llm_client_class = get_client_classes(llm_client_names_from_config)
     llm_client_display_name_to_class = {x.display_name() : x for x in llm_client_class}
     load_environment_variables(llm_client_class)
-    credentials_are_set = 'llm_client_class' in st.session_state and verify_credentials()
-    OK_to_proceed_to_chat = credentials_are_set
-    if OK_to_proceed_to_chat:
+    
+    if OK_to_proceed_to_chat():
         return True
-
     else:
         st.empty()
-        # with entry_page.form("my_form"):
+        st.session_state.user_confirmed_models = False
         st.write(instructions_for_user.get("main_instructions_for_user"))
 
         if len(llm_client_class) > 1:
@@ -237,21 +257,24 @@ def init_set_up_page():
         set_credentials_in_ui()
 
         models = TargetModelHandler().get_models()
-        # make llama-3 the first model
-        default_model = 'llama-3'
-        llama_index = [m['short_name'] for m in models].index(default_model)
-        temp_value = models[0]
-        models[0] = models[llama_index]
-        models[llama_index] = temp_value
+        supported_models = st.session_state["config"].get('General', 'supported_models')
+        models = [m for m in models if m['full_name'] in supported_models]
+
+        model = st.radio(
+            label="Select the model to coordinate conservational prompt tuning",
+            options=[m['short_name'] for m in models],
+            key="model_radio",
+            captions=[m['full_name'] for m in models])
         target_model = st.radio(
-                    label="Select the target model. The prompt that you will build will be formatted for this model.",
-                    options=[m['short_name'] for m in models],
-                    key="target_model_radio",
-                    captions=[m['full_name'] for m in models])
+            label="Select the target model. The prompt that you will build will be formatted for this model.",
+            options=[m['short_name'] for m in models],
+            key="target_model_radio",
+            captions=[m['full_name'] for m in models])
 
-
-    st.button("Submit", on_click=submit_button_clicked, args=[target_model])
-    return False
+        st.button("Submit", on_click=submit_button_clicked, args=[model, target_model])
+        return False
+    # end if
+# end def
 
 
 def init_config():
