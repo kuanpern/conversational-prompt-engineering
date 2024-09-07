@@ -34,10 +34,11 @@ def create_model_client(model_name, llm_client):
         params = json.load(f)
     model_params = {x: y for x, y in params['models'][model_name].items()}
     endpoint = params["endpoints"][llm_client.__name__]
+    return llm_client(endpoint, model_params)
     try:
         return llm_client(endpoint, model_params)
     except Exception as e:
-        raise ValueError(f'Error generating model client: {e.error_msg}')
+        raise ValueError(f'Error generating model client: ' + str(e))
 
 
 def format_chat(chat, model_id):
@@ -77,6 +78,10 @@ def format_chat(chat, model_id):
         raise ValueError(f"model {model_id} not supported")
 
 
+
+
+
+# MODIFY TO SUPPORT GEMINI
 class ChatManagerBase:
     def __init__(self, model, target_model, llm_client, output_dir, config_name) -> None:
         logging.info(f"selected {model}")
@@ -132,15 +137,32 @@ class ChatManagerBase:
         logging.info(f"Highest processing time: {self.timing_report[-1]}")
         logging.info(f"Lowest processing time: {self.timing_report[0]}")
 
+#    def _generate_output_and_log_stats(self, conversation, client, max_new_tokens=None):
+#        start_time = time
+#        generated_texts, stats_dict = client.send_messages(conversation, max_new_tokens)
+#        elapsed_time = time.time() - start_time.time()
+#        timing_dict = {"total_time": elapsed_time, "start_time": start_time.strftime("%d-%m-%Y %H:%M:%S")}
+#        timing_dict.update(stats_dict)
+#        logging.info(timing_dict)
+#        self.timing_report.append(timing_dict)
+#        return generated_texts
+
+    # HERE
     def _generate_output_and_log_stats(self, conversation, client, max_new_tokens=None):
         start_time = time
-        generated_texts, stats_dict = client.send_messages(conversation, max_new_tokens)
+        generated_texts = client.send_messages(conversation, max_new_tokens)
         elapsed_time = time.time() - start_time.time()
         timing_dict = {"total_time": elapsed_time, "start_time": start_time.strftime("%d-%m-%Y %H:%M:%S")}
-        timing_dict.update(stats_dict)
         logging.info(timing_dict)
         self.timing_report.append(timing_dict)
         return generated_texts
+
+
+    def prompt_llm(self, conversation, max_new_tokens=None):
+        model = self._get_model(max_new_tokens)
+        res = model.generate_text(prompt=[conversation])
+        texts = [x.strip() for x in res]
+        return texts
 
     def _generate_output(self, prompt_str, client=None):
         if client is None:

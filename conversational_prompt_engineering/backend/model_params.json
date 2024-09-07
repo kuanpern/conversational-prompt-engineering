@@ -20,11 +20,17 @@
         "model_id": "kaist-ai/prometheus-8x7b-v2",
         "max_new_tokens": 4096,
         "max_total_tokens": 32768
+    },
+    "gemini-1.5-flash": {
+      "model_id": "vertex-ai/gemini-1.5-flash",
+      "max_new_tokens": 4096,
+      "max_total_tokens": 32768
     }
   },
 
   "endpoints": {
     "WatsonXClient": "https://us-south.ml.cloud.ibm.com",
-    "BamClient": "https://bam-api.res.ibm.com"
+    "BamClient": "https://bam-api.res.ibm.com",
+    "DefaultClient": null
   }
 }

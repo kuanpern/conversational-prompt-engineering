@@ -175,7 +175,9 @@ instructions_for_user = {
 
 
 def load_environment_variables(llm_api_classes):
+    print("loading environment variables")
     if "llm_client_class" not in st.session_state:
+        print('use the first llm client class')
         st.session_state.llm_client_class = llm_api_classes[0]
 
 def set_credentials_in_ui():
