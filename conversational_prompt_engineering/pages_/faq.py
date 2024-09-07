@@ -1,8 +1,4 @@
 import streamlit as st
-import streamlit as st
-
-
-
 
 q_n_a = [("What is the purpose of CPE?",
                     "CPE is designed to create prompts for recurring tasks. In a conversational process, CPE assists in generating a prompt tailored to your task. You will see output examples based on the text you provide, allowing you to refine your prompt accordingly. Ultimately, you'll have a prompt that can be applied to various text examples.") ,

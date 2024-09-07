@@ -4,12 +4,10 @@
 # http://www.apache.org/licenses/LICENSE-2.0
 
 import datetime
-import hashlib
 import os
 import sys
 import dotenv
 import logging
-logging.basicConfig(level=logging.WARNING)
 
 import streamlit as st
 from genai.schema import ChatRole
@@ -294,16 +292,16 @@ def init_config():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
     if not "config" in st.session_state:
         init_config()
         st.rerun()
     show_pages(
         [
             Page("cpe_ui.py", "Chat", ""),
-            Page("pages_/faq.py", "FAQ", ""),
-            Page("pages_/survey.py", "Survey", ""),
-            Page("pages_/evaluation.py", "Evaluate", ""),
+            Page("conversational_prompt_engineering/pages_/faq.py", "FAQ", ""),
+            Page("conversational_prompt_engineering/pages_/survey.py", "Survey", ""),
+            Page("conversational_prompt_engineering/pages_/evaluation.py", "Evaluate", ""),
         ]
     )
 
