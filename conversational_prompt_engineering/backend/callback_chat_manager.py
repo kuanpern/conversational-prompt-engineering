@@ -8,11 +8,14 @@ import logging
 import os.path
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
-from genai.schema import ChatRole
+# from genai.schema import ChatRole
 
 from conversational_prompt_engineering.backend.chat_manager_util import ChatManagerBase
 from conversational_prompt_engineering.backend.prompt_building_util import TargetModelHandler
 from conversational_prompt_engineering.data.main_dataset_name_to_dir import dataset_name_to_dir
+
+from jinja2 import Environment, BaseLoader, DebugUndefined
+jinja_env = Environment(loader=BaseLoader,undefined=DebugUndefined)
 
 
 ITERATIONS_NUM = 3 #max number of iterations of the outputs approval
@@ -200,7 +203,7 @@ class CallbackChatManager(ChatManagerBase):
         chat.append({'role': role, 'content': msg, **tag_kwargs})
 
     def add_system_message(self, msg, **tag_kwargs):
-        self._add_msg(self.model_chat, ChatRole.SYSTEM, msg, **tag_kwargs)
+        self._add_msg(self.model_chat, 'system', msg, **tag_kwargs)
 
     def submit_model_chat_and_process_response(self):
         while len(self.model_chat) > self.model_chat_length:
@@ -211,7 +214,7 @@ class CallbackChatManager(ChatManagerBase):
 
             while len(self.calls_queue) > 0:
                 call = self.calls_queue.pop(0)
-                self._add_msg(self.model_chat, ChatRole.ASSISTANT, call,
+                self._add_msg(self.model_chat, 'assistant', call,
                               example_num=self.example_num, prompt_iteration=self.prompt_iteration)
                 self.model_chat_length += 1
                 self._execute_api_call(call)
@@ -271,8 +274,8 @@ class CallbackChatManager(ChatManagerBase):
 
             err += f'\nattempt {num_attempt + 1}: {resp}'
             tmp_chat = self._filtered_model_chat
-            self._add_msg(tmp_chat, ChatRole.ASSISTANT, resp)
-            self._add_msg(tmp_chat, ChatRole.SYSTEM, self.model_prompts.api_only_instruction)
+            self._add_msg(tmp_chat, 'assistant', resp)
+            self._add_msg(tmp_chat, 'system', self.model_prompts.api_only_instruction)
             resp = self._get_assistant_response(tmp_chat)
 
         raise ValueError('Invalid model response' + err)
@@ -286,7 +289,7 @@ class CallbackChatManager(ChatManagerBase):
             except SyntaxError as e:
                 err += f'\nattempt {num_attempt + 1}: {call}'
                 tmp_chat = self._filtered_model_chat
-                self._add_msg(tmp_chat, ChatRole.SYSTEM,
+                self._add_msg(tmp_chat, 'system',
                               self.model_prompts.syntax_err_instruction.replace('ERROR', str(e)))
                 resp = self._get_assistant_response(tmp_chat)
                 call = self._parse_model_response(resp)[0]
@@ -295,13 +298,13 @@ class CallbackChatManager(ChatManagerBase):
         raise ValueError('Invalid call syntax' + err)
 
     def add_user_message(self, message):
-        self._add_msg(self.user_chat, ChatRole.USER, message)
+        self._add_msg(self.user_chat, 'user', message)
         self.user_chat_length = len(self.user_chat)  # user message is rendered by cpe
-        self._add_msg(self.model_chat, ChatRole.USER, message,
+        self._add_msg(self.model_chat, 'user', message,
                       prompt_iteration=self.prompt_iteration)  # not adding dummy initial user message
 
     def add_user_message_only_to_user_chat(self, message):
-        self._add_msg(self.user_chat, ChatRole.USER, message)
+        self._add_msg(self.user_chat, 'user', message)
         self.user_chat_length = len(self.user_chat)  # user message is rendered by cpe
 
     def generate_agent_messages(self):
@@ -309,7 +312,7 @@ class CallbackChatManager(ChatManagerBase):
         agent_messages = []
         if len(self.user_chat) > self.user_chat_length:
             for msg in self.user_chat[self.user_chat_length:]:
-                if msg['role'] == ChatRole.ASSISTANT:
+                if msg['role'] == 'assistant':
                     agent_messages.append(msg)
             self.user_chat_length = len(self.user_chat)
 
@@ -318,11 +321,11 @@ class CallbackChatManager(ChatManagerBase):
         return agent_messages
 
     def submit_message_to_user(self, message):
-        self._add_msg(self.user_chat, ChatRole.ASSISTANT, message)
+        self._add_msg(self.user_chat, 'assistant', message)
 
     def show_original_text(self, example_num):
         txt = self.examples[int(example_num) - 1]
-        self._add_msg(chat=self.user_chat, role=ChatRole.ASSISTANT, msg=txt)
+        self._add_msg(chat=self.user_chat, role='assistant', msg=txt)
         self.add_system_message(f'The original text for Example {example_num} was shown to the user.')
 
     # we use this callback to define a baseline prompt. Once the task is defined by the user, the LLM constructs the
@@ -331,7 +334,7 @@ class CallbackChatManager(ChatManagerBase):
         if len(init_prompt) == 0:
             # open side chat with model
             tmp_chat = self.model_chat[:]
-            self._add_msg(tmp_chat, ChatRole.SYSTEM, self.model_prompts.generate_baseline_instruction_task)
+            self._add_msg(tmp_chat, 'system', self.model_prompts.generate_baseline_instruction_task)
             resp = self._get_assistant_response(tmp_chat)
             submit_prmpt_call = self._parse_model_response(resp)[0]
             self.baseline_prompts["model_baseline_prompt"] = submit_prmpt_call[:-2].replace("self.submit_prompt(\"", "")
@@ -365,9 +368,10 @@ class CallbackChatManager(ChatManagerBase):
         futures = {}
         with ThreadPoolExecutor(max_workers=len(self.examples)) as executor:
             for i, example in enumerate(self.examples):
-                prompt_str = TargetModelHandler().format_prompt(model=side_model.model_id,
+                prompt_str = TargetModelHandler().format_prompt(model=side_model,
                                                                 prompt=prompt, texts_and_outputs=[])
-                prompt_str = prompt_str.format(text=example)
+
+                prompt_str = jinja_env.from_string(prompt_str).render(text=example)
                 futures[i] = executor.submit(self._generate_output, prompt_str, side_model)
 
         self.output_discussion_state = {
@@ -384,7 +388,7 @@ class CallbackChatManager(ChatManagerBase):
 
         # side chat - generated output of new prompt vs. the outputs that were accepted outputs
         if len(self.prompts) > 1 and prev_discussion_cot is not None:
-            tmp_chat = [{'role': ChatRole.SYSTEM, 'content': '\n'.join([
+            tmp_chat = [{'role': 'system', 'content': '\n'.join([
                 self.model_prompts.analyze_new_prompt_task,
                 self.model_prompts.analyze_new_prompt_accepted_outputs,
                 *[f'Example{i + 1}: {o}' for i, o in enumerate(self.outputs)],
@@ -393,7 +397,7 @@ class CallbackChatManager(ChatManagerBase):
             ])}]
 
             response = self._get_assistant_response(tmp_chat)
-            self.save_chat_html(tmp_chat + [{'role': ChatRole.ASSISTANT, 'content': response}],
+            self.save_chat_html(tmp_chat + [{'role': 'assistant', 'content': response}],
                                 f'CoT_{self.cot_count}.html')
             self.cot_count += 1
             self.add_system_message(response, prompt_iteration=self.prompt_iteration)
@@ -421,12 +425,12 @@ class CallbackChatManager(ChatManagerBase):
 
         self.calls_queue = []
         temp_chat = []
-        self._add_msg(temp_chat, ChatRole.SYSTEM,
+        self._add_msg(temp_chat, 'system',
                       self.model_prompts.analyze_discussion_task_begin.replace('PROMPT', self.prompts[-1]))
         temp_chat += self.user_chat[self.output_discussion_state['user_chat_begin']:]
-        self._add_msg(temp_chat, ChatRole.SYSTEM, self.model_prompts.analyze_discussion_task_end)
+        self._add_msg(temp_chat, 'system', self.model_prompts.analyze_discussion_task_end)
         recommendations = self._get_assistant_response(temp_chat)
-        self._add_msg(temp_chat, ChatRole.SYSTEM, recommendations)
+        self._add_msg(temp_chat, 'system', recommendations)
         self.save_chat_html(temp_chat, f'CoT_{self.cot_count}.html')
         self.cot_count += 1
         self.output_discussion_state['outputs_discussion_CoT'] = temp_chat
