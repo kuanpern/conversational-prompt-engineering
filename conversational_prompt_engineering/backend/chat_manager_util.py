@@ -28,20 +28,8 @@ def extract_delimited_text(txt, delims):
         return txt  # delims not found in text
     except ValueError:
         return txt
-
-
-def create_model_client(model_name, llm_client):
-    with open(os.path.join(os.path.dirname(__file__),"model_params.json"), "r") as f:
-        params = json.load(f)
-    model_params = {x: y for x, y in params['models'][model_name].items()}
-    endpoint = params["endpoints"][llm_client.__name__]
-    try:
-        return llm_client(endpoint, model_params)
-    except Exception as e:
-        raise ValueError(f'Error generating model client: ' + str(e))
     # end try
 # end def
-
 
 def format_chat(chat, model_id):
     # TODO: default to using langchain
@@ -94,32 +82,36 @@ def format_chat(chat, model_id):
     # end if
 # end def
 
-
-
-# MODIFY TO SUPPORT GEMINI
 class ChatManagerBase:
-    def __init__(self, model, target_model, llm_client, output_dir, config_name) -> None:
-        logging.info(f"selected {model}")
-        logging.info(f"selected target {target_model}")
+    def __init__(self, llm_client, target_llm_client, output_dir, config_name) -> None:
 
-        self.llm_client = create_model_client(model, llm_client)
-        self.target_llm_client = create_model_client(target_model, llm_client)
         self.dataset_name = None
         self.state = None
         self.timing_report = []
-        self.out_dir = output_dir
-        self.config_name = config_name
-        logging.info(f"output is saved to {os.path.abspath(self.out_dir)}")
 
+        self.llm_client        = llm_client
+        self.target_llm_client = target_llm_client
+
+        self.model        = self.llm_client.model_id
+        self.target_model = self.target_llm_client.model_id
+        self.out_dir      = output_dir
+        self.config_name  = config_name
+
+        logging.info(f"selected {self.model}")
+        logging.info(f"selected target {self.target_model}")
+        logging.info(f"output is saved to {os.path.abspath(self.out_dir)}")
+    # end def
 
     def save_config(self):
         chat_dir = os.path.join(self.out_dir, "chat")
         os.makedirs(chat_dir, exist_ok=True)
         with open(os.path.join(chat_dir, "config.json"), "w") as f:
-            json.dump({"model": self.llm_client.parameters['model_id'],
+            json.dump({"model": self.model,
                        "dataset": self.dataset_name,
                        "config_name": self.config_name,
-                       "target_model": self.target_llm_client.parameters['model_id']}, f)
+                       "target_model": self.target_model}, f)
+        # end with
+    # end def
 
     def save_chat_html(self, chat, file_name):
         def _format(msg):
@@ -178,11 +170,11 @@ class ChatManagerBase:
         return agent_response.strip()
 
     def _get_assistant_response(self, chat, max_new_tokens=None):
-        conversation = format_chat(chat, self.llm_client.parameters['model_id'])
+        conversation = format_chat(chat, self.model)
         generated_texts = self._generate_output_and_log_stats(conversation, client=self.llm_client,
                                                               max_new_tokens=max_new_tokens)
-        # print('generated_texts:')
-        # print(generated_texts)
+        print('generated_texts:')
+        print(generated_texts)
         agent_response = ''
         for txt in generated_texts:
             if any([f'<|{r}|>' in txt for r in [ChatRole.SYSTEM, ChatRole.USER]]):

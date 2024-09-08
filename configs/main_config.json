@@ -1,0 +1,62 @@
+{
+  "General": {
+    "supported_models": ["google/gemini-1.5-flash"]
+  },
+
+  "UI": {
+    "ds_script": "conversational_prompt_engineering/data/main_dataset_name_to_dir.py",
+    "background_color": "#ceebd7"
+  },
+
+  "Evaluation": {
+    "main_baseline_prompt": "model_baseline_prompt",
+    "prompt_types": ["baseline", "few_shot"],
+    "min_examples_to_evaluate": 3
+  },
+
+  "LLM": {
+    "google/gemini-1.5-flash": {
+      "short_name": "gemini-1.5-flash",
+      "class_name": "langchain_google_genai.ChatGoogleGenerativeAI",
+      "api_key_env_var": "GOOGLE_API_KEY",
+      "kwargs": {
+        "model": "gemini-1.5-flash"
+      }
+    },
+    "openai/gpt-4o": {
+      "short_name": "gpt-4o",
+      "class_name": "langchain_openai.ChatOpenAI",
+      "api_key_env_var": "OPENAI_API_KEY",
+      "kwargs": {
+        "model": "gpt-4o"
+      }
+    },
+    "mistralai/mixtral-8x7b-instruct-v01": {
+      "short_name": "mixtral",
+      "class_name": "langchain_mistralai.ChatMistralAI",
+      "api_key_env_var": "MISTRAL_API_KEY",
+      "kwargs": {
+        "model": "mixtral-8x7b-instruct-v01"
+      }
+    },
+    "meta-llama/llama-3-70b-instruct": {
+      "short_name": "llama-3",
+      "class_name": "langchain_ibm.ChatWatsonx",
+      "api_key_env_var": "WATSONX_APIKEY",
+      "kwargs": {
+        "model_id": "meta-llama/llama-3-70b-instruct"
+      }
+    },
+    "ibm/granite-13b-chat-v2": {
+      "short_name": "granite",
+      "class_name": "langchain_ibm.ChatWatsonx",
+      "api_key_env_var": "BAM_APIKEY",
+      "kwargs": {
+        "model_id": "ibm/granite-13b-chat-v2"
+      }
+    }
+  }
+}
+
+
+

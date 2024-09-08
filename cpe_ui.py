@@ -15,9 +15,8 @@ from st_pages import Page, show_pages
 from streamlit_js_eval import streamlit_js_eval
 
 from configs.config_utils import load_config
+from conversational_prompt_engineering.backend.util.llm_clients.llm_clients_loader import init_llm_client
 from conversational_prompt_engineering.backend.callback_chat_manager import CallbackChatManager
-from conversational_prompt_engineering.backend.prompt_building_util import TargetModelHandler
-from conversational_prompt_engineering.backend.util.llm_clients.llm_clients_loader import get_client_classes
 from conversational_prompt_engineering.data.dataset_utils import load_dataset_mapping
 
 from conversational_prompt_engineering.util.csv_file_utils import read_user_csv_file
@@ -34,16 +33,14 @@ dotenv.load_dotenv()
 
 def reset_chat():
     streamlit_js_eval(js_expressions="parent.window.location.reload()")
-
+# end def
 
 def set_output_dir():
-    if st.session_state["config"].has_option("General", "output_dir"):
-        output_dir = st.session_state['config'].get('General', 'output_dir')
-    else:
-        output_dir = f'_out/'
+    output_dir = st.session_state["config"]["General"].get("output_dir", f'_out/')
     out_folder = os.path.join(output_dir, datetime.datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
     os.makedirs(out_folder, exist_ok=True)
     return out_folder
+# end def
 
 
 def callback_cycle():
@@ -65,11 +62,21 @@ def callback_cycle():
         logger = logging.getLogger()
         logger.addHandler(file_handler)
 
-        st.session_state.manager = CallbackChatManager(model=st.session_state.model,
-                                                       target_model=st.session_state.target_model,
-                                                       llm_client=st.session_state.llm_client_class,
-                                                       output_dir=output_dir,
-                                                       config_name=st.session_state["config_name"])
+        llm_configs = st.session_state["config"]["LLM"]
+        model_id = st.session_state.model
+        llm_client = init_llm_client(llm_configs[model_id])
+        llm_client.model_id = model_id
+
+        target_model_id = st.session_state.target_model
+        target_llm_client = init_llm_client(llm_configs[target_model_id])
+        target_llm_client.model_id = target_model_id
+
+        st.session_state.manager = CallbackChatManager(
+            llm_client        = llm_client,
+            target_llm_client = target_llm_client,
+            output_dir        = output_dir,
+            config_name       = st.session_state["config_name"]
+        ) # end create CallbackChatManager
 
     manager = st.session_state.manager
 
@@ -141,35 +148,6 @@ def callback_cycle():
             file_name='few_shot_prompt.txt',
             mime="text"
         )
-
-
-def submit_button_clicked(model, target_model):
-    def get_secret_key(env_var_name, text_area_key):
-        return getattr(st.session_state, text_area_key) if env_var_name not in os.environ else os.environ[env_var_name]
-
-    st.session_state.user_confirmed_models = True
-
-    # verify credentials
-    st.session_state.cred_error = ""
-    creds_are_ok = True
-    for cred in st.session_state.llm_client_class.credentials_params():
-        cred_value = get_secret_key(cred, cred)
-        if cred_value != "": #value is set
-            os.environ[cred] = cred_value
-        else:
-            creds_are_ok = False
-        # end if
-    # end for
-
-    print('creds_are_ok?')
-    if creds_are_ok:
-        print('ok')
-        st.session_state.model = model
-        st.session_state.target_model = target_model
-    else:
-        print('no')
-        st.session_state.cred_error = ':heavy_exclamation_mark: Please provide your credentials'
-    # end if
 # end def
 
 instructions_for_user = {
@@ -179,48 +157,18 @@ instructions_for_user = {
         "To make the most out of this service, it would be best to prepare in advance at least 3 input examples that represent your use case in a simple csv file. Alternatively, you can use sample data from our data catalog.\n" \
         "For more information feel free to contact us in slack via [#foundation-models-lm-utilization](https://ibm.enterprise.slack.com/archives/C04KBRUDR8R).\n" \
         "This assistant system uses BAM or Watsonx to serve LLMs. Do not include PII or confidential information in your responses, nor in the data you share.",
-
 }
 
-
-def load_environment_variables(llm_api_classes):
-    print("loading environment variables")
-    if "llm_client_class" not in st.session_state:
-        print('use the first llm client class')
-        st.session_state.llm_client_class = llm_api_classes[0]
-
-def set_credentials_in_ui():
-    def handle_secret_key(env_var_name, text_area_key, text_area_label):
-        is_disabled = False
-        val = "" if not hasattr(st.session_state, text_area_key) else getattr(st.session_state, text_area_key)
-        if env_var_name in os.environ:
-            val = "****"  # hidden
-            is_disabled = True
-        st.text_input(label=text_area_label, key=text_area_key, disabled=is_disabled, value=val)
-
-    for cred_key, cred_label in st.session_state.llm_client_class.credentials_params().items():
-        handle_secret_key(env_var_name=cred_key, text_area_key=cred_key,
-                          text_area_label=cred_label)
-
-    if hasattr(st.session_state, "cred_error") and st.session_state.cred_error != "":
-        st.error(st.session_state.cred_error)
-    # end if
-# end def
-
-def verify_credentials():
-    for env_var in st.session_state.llm_client_class.credentials_params():
-        if env_var not in os.environ or os.environ[env_var] == "":
-            return False
-    return True
+def submit_button_clicked(model, target_model):
+    st.session_state.user_confirmed_models = True
+    st.session_state.model = model
+    st.session_state.target_model = target_model
 # end def
 
 def OK_to_proceed_to_chat():
-
     return all([
         'model'            in st.session_state,
         'target_model'     in st.session_state,
-        'llm_client_class' in st.session_state,
-        verify_credentials(),
         getattr(st.session_state, 'user_confirmed_models', False),
     ])
 # end def
@@ -229,11 +177,10 @@ def OK_to_proceed_to_chat():
 def init_set_up_page():
     st.title(":blue[Conversational Prompt Engineering]")
 
-    llm_client_names_from_config = eval(st.session_state["config"].get("General", "llm_api"))
-    llm_client_class = get_client_classes(llm_client_names_from_config)
-    llm_client_display_name_to_class = {x.display_name() : x for x in llm_client_class}
-    load_environment_variables(llm_client_class)
-    
+    configs     = st.session_state["config"]
+    llm_configs = configs["LLM"]
+    models      = configs['General']['supported_models']
+
     if OK_to_proceed_to_chat():
         return True
     else:
@@ -241,35 +188,19 @@ def init_set_up_page():
         st.session_state.user_confirmed_models = False
         st.write(instructions_for_user.get("main_instructions_for_user"))
 
-        if len(llm_client_class) > 1:
-            llm_client_name = st.radio(
-                label="Please select your llm client",
-                label_visibility='hidden',
-                options=[x.display_name() for x in llm_client_class],
-                horizontal=True, key=f"llm_client_radio")
-            llm_client = llm_client_display_name_to_class[llm_client_name]
-        else:
-            llm_client = llm_client_class[0]
-        st.session_state.llm_client_class = llm_client
-
-        set_credentials_in_ui()
-
-        models = TargetModelHandler().get_models()
-        supported_models = st.session_state["config"].get('General', 'supported_models')
-        models = [m for m in models if m['full_name'] in supported_models]
-
         model = st.radio(
             label="Select the model to coordinate conservational prompt tuning",
-            options=[m['short_name'] for m in models],
+            options=[llm_configs[m]['short_name'] for m in models],
             key="model_radio",
-            captions=[m['full_name'] for m in models])
+            captions=models)
         target_model = st.radio(
             label="Select the target model. The prompt that you will build will be formatted for this model.",
-            options=[m['short_name'] for m in models],
+            options=[llm_configs[m]['short_name'] for m in models],
             key="target_model_radio",
-            captions=[m['full_name'] for m in models])
-
-        st.button("Submit", on_click=submit_button_clicked, args=[model, target_model])
+            captions=models)
+        
+        d = {llm_configs[m]['short_name']: m for m in models}        
+        st.button("Submit", on_click=submit_button_clicked, args=[d[model], d[target_model]])
         return False
     # end if
 # end def
@@ -287,8 +218,8 @@ def init_config():
     st.session_state["config_name"] = config_name
     st.session_state["config"] = config
     st.session_state["dataset_name_to_dir"] = load_dataset_mapping(config)
-    if config.has_option("UI", "background_color"):
-        st._config._set_option("theme.secondaryBackgroundColor", config.get("UI", "background_color"), where_defined=None)
+    if config["UI"].get("background_color") is not None:
+        st._config._set_option("theme.secondaryBackgroundColor", config["UI"]["background_color"], where_defined=None)
 
 
 if __name__ == "__main__":
