@@ -294,7 +294,6 @@ class CallbackChatManager(ChatManagerBase):
                 resp = self._get_assistant_response(tmp_chat)
                 call = self._parse_model_response(resp)[0]
 
-        # HERE
         raise ValueError('Invalid call syntax' + err)
 
     def add_user_message(self, message):
@@ -372,7 +371,7 @@ class CallbackChatManager(ChatManagerBase):
                                                                 prompt=prompt, texts_and_outputs=[])
 
                 prompt_str = jinja_env.from_string(prompt_str).render(text=example)
-                futures[i] = executor.submit(self._generate_output, prompt_str, side_model)
+                futures[i] = executor.submit(self._generate_output, prompt_str, self.target_llm_client)
 
         self.output_discussion_state = {
             'model_outputs': [None] * len(self.examples),
