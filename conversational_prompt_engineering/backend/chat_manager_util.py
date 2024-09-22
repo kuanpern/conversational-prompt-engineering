@@ -9,7 +9,6 @@ import os
 import json
 
 import pandas as pd
-from genai.schema import ChatRole
 
 from conversational_prompt_engineering.backend.prompt_building_util import TargetModelHandler, LLAMA_END_OF_MESSAGE, \
     _get_llama_header, LLAMA_START_OF_INPUT
@@ -63,7 +62,7 @@ def format_chat(chat, model_id):
         msg_str = LLAMA_START_OF_INPUT
         for m in chat:
             msg_str += _get_llama_header(m['role']) + "\n\n" + m['content'] + LLAMA_END_OF_MESSAGE
-        msg_str += _get_llama_header(ChatRole.ASSISTANT)
+        msg_str += _get_llama_header('assistant')
         return msg_str
     else: # use langchain
         messages = []
@@ -164,6 +163,7 @@ class ChatManagerBase:
     def _generate_output(self, prompt_str, client=None):
         if client is None:
             client = self.target_llm_client
+
         generated_texts = self._generate_output_and_log_stats(prompt_str, client=client)
         agent_response = generated_texts[0]
         logging.info(f"got response from model: {agent_response}")
@@ -173,11 +173,9 @@ class ChatManagerBase:
         conversation = format_chat(chat, self.model)
         generated_texts = self._generate_output_and_log_stats(conversation, client=self.llm_client,
                                                               max_new_tokens=max_new_tokens)
-        print('generated_texts:')
-        print(generated_texts)
         agent_response = ''
         for txt in generated_texts:
-            if any([f'<|{r}|>' in txt for r in [ChatRole.SYSTEM, ChatRole.USER]]):
+            if any([f'<|{r}|>' in txt for r in ['system', 'user']]):
                 agent_response += txt[: txt.index('<|')]
                 break
             agent_response += txt

@@ -10,7 +10,6 @@ import dotenv
 import logging
 
 import streamlit as st
-from genai.schema import ChatRole
 from st_pages import Page, show_pages
 from streamlit_js_eval import streamlit_js_eval
 
@@ -87,7 +86,7 @@ def callback_cycle():
     static_welcome_msg = \
         "Hello! I'm an IBM prompt building assistant. In the following session we will work together through a natural conversation, to build an effective instruction – a.k.a. prompt – personalized for your task and data. Note that the prompt will be created to operate on each example individually. Therefore, if your task involves multiple texts, such as multi-document summarization, a single input example should include multiple texts."
 
-    with st.chat_message(ChatRole.ASSISTANT):
+    with st.chat_message('assistant'):
         st.write(static_welcome_msg)
 
     if not "csv_file_train" in st.session_state:
@@ -97,7 +96,7 @@ def callback_cycle():
         manager.add_user_message_only_to_user_chat("Selected data")
 
     static_upload_data_msg = "To begin, please select a dataset from our datasets catalog above."
-    with st.chat_message(ChatRole.ASSISTANT):
+    with st.chat_message('assistant'):
         st.write(static_upload_data_msg)
 
     if ("existing_chat_path" in st.session_state and st.session_state["existing_chat_path"] != "") and not \

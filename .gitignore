@@ -4,8 +4,8 @@ conversational_prompt_engineering/_out/
 # Project only
 conversational_prompt_engineering/_out*
 
-_out*
 _out/
+_out*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
