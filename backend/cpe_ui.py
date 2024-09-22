@@ -217,6 +217,7 @@ def init_config():
     st.session_state["config_name"] = config_name
     st.session_state["config"] = config
     st.session_state["dataset_name_to_dir"] = load_dataset_mapping(config)
+    print(config)
     if config["UI"].get("background_color") is not None:
         st._config._set_option("theme.secondaryBackgroundColor", config["UI"]["background_color"], where_defined=None)
 
